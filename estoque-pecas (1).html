@@ -398,19 +398,28 @@ select.filter-select{
   var mainEl = document.getElementById("main-content");
   var navEl = document.getElementById("bottom-nav");
 
-  // ---------- storage ----------
+  // ---------- storage (localStorage: salva localmente no navegador/dispositivo) ----------
   function loadItems(){
-    return window.storage.get(STORAGE_KEY, false)
-      .then(function(res){
-        if(!res || !res.value) return [];
-        try{ return JSON.parse(res.value); }catch(e){ return []; }
-      })
-      .catch(function(){ return []; });
+    return new Promise(function(resolve){
+      try{
+        var raw = localStorage.getItem(STORAGE_KEY);
+        resolve(raw ? JSON.parse(raw) : []);
+      }catch(e){
+        resolve([]);
+      }
+    });
   }
 
   function saveItems(){
-    return window.storage.set(STORAGE_KEY, JSON.stringify(state.items), false)
-      .catch(function(e){ showToast("Não foi possível salvar. Tente novamente."); });
+    return new Promise(function(resolve){
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+        resolve(true);
+      }catch(e){
+        showToast("Não foi possível salvar. Verifique o espaço do navegador.");
+        resolve(false);
+      }
+    });
   }
 
   // ---------- helpers ----------
