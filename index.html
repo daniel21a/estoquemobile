@@ -175,6 +175,24 @@ body{
 .section-title .count-badge{
   background:var(--surface-alt); color:var(--text); padding:2px 9px; border-radius:20px; font-size:11px; letter-spacing:0;
 }
+.section-header-row{ display:flex; align-items:center; justify-content:space-between; margin:22px 0 10px; gap:10px; }
+.section-title-text{
+  font-family:var(--font-display); font-size:13px; letter-spacing:0.08em;
+  color:var(--text-muted); text-transform:uppercase; display:flex; align-items:center; gap:8px;
+}
+.pdf-btn{
+  background:var(--surface-alt); border:1px solid var(--copper); color:var(--copper-bright);
+  font-size:11px; font-weight:700; padding:6px 12px; border-radius:20px; cursor:pointer;
+  font-family:var(--font-body); display:flex; align-items:center; gap:5px; flex-shrink:0; white-space:nowrap;
+}
+.pdf-btn svg{ width:12px; height:12px; }
+.pdf-banner{
+  display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid rgba(224,168,60,0.35);
+  border-left:3px solid var(--warning); border-radius:var(--radius-sm); padding:10px 13px; margin-bottom:10px;
+  font-size:12px; color:var(--text-muted); cursor:pointer;
+}
+.pdf-banner strong{ color:var(--text); }
+.pdf-banner .pdf-banner-link{ color:var(--copper-bright); font-weight:700; text-decoration:underline; }
 
 /* low stock rows */
 .low-stock-row{
@@ -353,13 +371,13 @@ select.filter-select{
   <main id="main-content"><div class="loading-wrap"><div class="spinner"></div>Carregando estoque…</div></main>
 
   <nav class="bottom-nav" id="bottom-nav">
-    <button class="nav-btn" data-view="dashboard">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="11" width="8" height="10" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/></svg>
+    <button class="nav-btn" data-view="list">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="0.5" fill="currentColor"/></svg>
       Painel
     </button>
     <button class="fab" id="fab-add">+</button>
-    <button class="nav-btn" data-view="list">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="0.5" fill="currentColor"/></svg>
+    <button class="nav-btn" data-view="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="11" width="8" height="10" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/></svg>
       Estoque
     </button>
   </nav>
@@ -376,6 +394,8 @@ select.filter-select{
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -385,7 +405,7 @@ select.filter-select{
   var STORAGE_KEY = "inventory-items";
 
   var state = {
-    view: "dashboard",
+    view: "list",
     items: [],
     loading: true,
     error: null,
@@ -474,7 +494,7 @@ select.filter-select{
     for(var i=0;i<btns.length;i++){
       btns[i].classList.toggle("active", btns[i].getAttribute("data-view") === state.view);
     }
-    var titles = { dashboard: "Peças & Componentes", list: "Estoque", form: state.editingId ? "Editar Peça" : "Nova Peça", detail: "Detalhes da Peça" };
+    var titles = { dashboard: "Resumo do Estoque", list: "Peças & Componentes", form: state.editingId ? "Editar Peça" : "Nova Peça", detail: "Detalhes da Peça" };
     document.getElementById("header-title").textContent = titles[state.view] || "Peças & Componentes";
   }
 
@@ -518,7 +538,9 @@ select.filter-select{
     html += '<div class="stat-card full"><p class="label">Valor de venda total (se vender tudo)</p><p class="value">' + fmtBRL(potentialSale) + '</p></div>';
     html += '</div>';
 
-    html += '<div class="section-title">Estoque baixo <span class="count-badge">' + lowStock.length + '</span></div>';
+    html += '<div class="section-header-row"><span class="section-title-text">Estoque baixo <span class="count-badge">' + lowStock.length + '</span></span>' +
+      '<button class="pdf-btn" id="pdf-report-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Relatório PDF</button>' +
+    '</div>';
     if(lowStock.length === 0){
       html += '<p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px;">Tudo certo por aqui — nenhuma peça abaixo do mínimo.</p>';
     } else {
@@ -527,7 +549,6 @@ select.filter-select{
           '<span class="dot"></span>' +
           '<div class="info"><p class="name">' + esc(item.name) + '</p><p class="sub">' + esc(item.brand) + (item.model ? ' · ' + esc(item.model) : '') + '</p></div>' +
           '<span class="qty-tag">' + item.quantity + '/' + item.minStock + '</span>' +
-          '<button class="restock-btn" data-restock="' + item.id + '">+</button>' +
         '</div>';
       });
     }
@@ -548,13 +569,8 @@ select.filter-select{
     mainEl.querySelectorAll('[data-open]').forEach(function(el){
       el.addEventListener('click', function(){ openDetail(el.getAttribute('data-open')); });
     });
-    mainEl.querySelectorAll('[data-restock]').forEach(function(el){
-      el.addEventListener('click', function(e){
-        e.stopPropagation();
-        adjustQty(el.getAttribute('data-restock'), 1);
-        renderDashboard();
-      });
-    });
+    var pdfBtn = document.getElementById("pdf-report-btn");
+    if(pdfBtn) pdfBtn.addEventListener("click", function(e){ e.stopPropagation(); generateRestockPDF(); });
   }
 
   // ---------- list ----------
@@ -569,7 +585,11 @@ select.filter-select{
   }
 
   function renderList(){
+    var lowCount = state.items.filter(isLow).length;
     var html = '';
+    if(lowCount > 0){
+      html += '<div class="pdf-banner" id="pdf-banner-list">⚠️ <strong>' + lowCount + ' peça(s)</strong> abaixo do mínimo — <span class="pdf-banner-link">gerar relatório PDF</span></div>';
+    }
     html += '<div class="search-wrap">' +
       '<svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
       '<input type="text" id="search-input" placeholder="Buscar por nome, marca ou modelo..." value="' + esc(state.search) + '">' +
@@ -582,6 +602,9 @@ select.filter-select{
     html += '</div>';
     html += '<div id="items-container"></div>';
     mainEl.innerHTML = html;
+
+    var pdfBannerList = document.getElementById("pdf-banner-list");
+    if(pdfBannerList) pdfBannerList.addEventListener("click", generateRestockPDF);
 
     var searchInput = document.getElementById("search-input");
     searchInput.addEventListener("input", function(){
@@ -632,10 +655,6 @@ select.filter-select{
           '<div class="gauge-row">' +
             '<div class="gauge-track"><div class="gauge-fill ' + gaugeClass + '" style="width:' + Math.round(ratio*100) + '%"></div></div>' +
             '<span class="gauge-label">' + item.quantity + ' un.</span>' +
-            '<div class="qty-controls">' +
-              '<button class="qty-btn" data-dec="' + item.id + '">−</button>' +
-              '<button class="qty-btn" data-inc="' + item.id + '">+</button>' +
-            '</div>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -643,16 +662,9 @@ select.filter-select{
     container.innerHTML = html;
 
     container.querySelectorAll('[data-open]').forEach(function(el){
-      el.addEventListener('click', function(e){
-        if(e.target.closest('[data-inc],[data-dec]')) return;
+      el.addEventListener('click', function(){
         openDetail(el.getAttribute('data-open'));
       });
-    });
-    container.querySelectorAll('[data-inc]').forEach(function(el){
-      el.addEventListener('click', function(e){ e.stopPropagation(); adjustQty(el.getAttribute('data-inc'), 1); renderItemsContainer(); });
-    });
-    container.querySelectorAll('[data-dec]').forEach(function(el){
-      el.addEventListener('click', function(e){ e.stopPropagation(); adjustQty(el.getAttribute('data-dec'), -1); renderItemsContainer(); });
     });
   }
 
@@ -662,6 +674,90 @@ select.filter-select{
     item.quantity = Math.max(0, item.quantity + delta);
     saveItems();
     updateStatusBar();
+  }
+
+  // ---------- relatório de reposição (PDF) ----------
+  function generateRestockPDF(){
+    var lowItems = state.items.filter(isLow);
+    if(lowItems.length === 0){
+      showToast("Nenhuma peça precisa de reposição agora.");
+      return;
+    }
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      showToast("Não foi possível carregar o gerador de PDF. Verifique sua conexão.");
+      return;
+    }
+
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor();
+    var now = new Date();
+    var dateStr = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(30, 30, 30);
+    doc.text('Relatório de Reposição de Estoque', 14, 18);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(110, 110, 110);
+    doc.text('Gerado em ' + dateStr, 14, 25);
+
+    var sorted = lowItems.slice().sort(function(a, b){ return (a.quantity - a.minStock) - (b.quantity - b.minStock); });
+    var rows = [];
+    var totalCost = 0;
+    var totalUnits = 0;
+    sorted.forEach(function(item){
+      var suggested = Math.max(1, (item.minStock * 2) - item.quantity);
+      var cost = suggested * item.costPrice;
+      totalCost += cost;
+      totalUnits += suggested;
+      rows.push([
+        item.name,
+        item.category,
+        item.brand + (item.model ? ' - ' + item.model : ''),
+        String(item.quantity),
+        String(item.minStock),
+        String(suggested),
+        fmtBRL(item.costPrice),
+        fmtBRL(cost)
+      ]);
+    });
+
+    doc.autoTable({
+      startY: 31,
+      head: [['Peça', 'Categoria', 'Marca / Modelo', 'Atual', 'Mín.', 'Comprar', 'Custo un.', 'Custo total']],
+      body: rows,
+      styles: { fontSize: 8.3, cellPadding: 3, textColor: [40,40,40] },
+      headStyles: { fillColor: [196, 131, 78], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+      alternateRowStyles: { fillColor: [246, 244, 240] },
+      columnStyles: {
+        0: { cellWidth: 34 },
+        2: { cellWidth: 36 },
+        3: { halign: 'center' },
+        4: { halign: 'center' },
+        5: { halign: 'center', fontStyle: 'bold' },
+        6: { halign: 'right' },
+        7: { halign: 'right' }
+      }
+    });
+
+    var finalY = doc.lastAutoTable.finalY + 12;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(14, finalY - 6, 196, finalY - 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11.5);
+    doc.setTextColor(30, 30, 30);
+    doc.text('Total estimado para repor: ' + fmtBRL(totalCost), 14, finalY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text(sorted.length + ' peça(s) abaixo do mínimo · ' + totalUnits + ' unidade(s) sugeridas para compra', 14, finalY + 7);
+
+    doc.save('relatorio-reposicao-' + now.toISOString().slice(0,10) + '.pdf');
+    showToast("Relatório PDF gerado.");
   }
 
   // ---------- detail ----------
