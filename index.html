@@ -454,6 +454,18 @@ select.filter-select{
     });
   }
   function isLow(item){ return item.quantity <= item.minStock; }
+  // Nível de estoque relativo ao mínimo de CADA peça — assim uma peça que "gira" pouco
+  // (mínimo baixo) pode estar verde com poucas unidades, e uma que gira muito (mínimo alto)
+  // já fica amarela/vermelha com mais unidades.
+  function stockTier(item){
+    if(item.quantity <= item.minStock) return 'low';
+    if(item.minStock > 0 && item.quantity <= item.minStock * 2) return 'medium';
+    if(item.minStock === 0 && item.quantity <= 2) return 'medium';
+    return 'good';
+  }
+  function tierToGaugeClass(tier){
+    return tier === 'low' ? 'crit' : (tier === 'medium' ? 'warn' : 'ok');
+  }
 
   function catIcon(cat){
     var icons = {
@@ -642,9 +654,10 @@ select.filter-select{
     var html = '';
     filtered.forEach(function(item){
       var low = isLow(item);
-      var ratio = item.minStock > 0 ? item.quantity / (item.minStock * 2) : (item.quantity > 0 ? 1 : 0);
+      var tier = stockTier(item);
+      var gaugeClass = tierToGaugeClass(tier);
+      var ratio = item.minStock > 0 ? item.quantity / (item.minStock * 2) : (item.quantity > 0 ? Math.min(1, item.quantity / 4) : 0);
       ratio = Math.max(0, Math.min(1, ratio));
-      var gaugeClass = low ? (item.quantity === 0 ? 'crit' : 'warn') : 'ok';
       html += '<div class="item-card' + (low ? ' low' : '') + '" data-open="' + item.id + '">' +
         '<div class="item-icon">' + catIcon(item.category) + '</div>' +
         '<div class="item-body">' +
@@ -771,6 +784,9 @@ select.filter-select{
     var item = state.items.find(function(i){ return i.id === state.editingId; });
     if(!item){ showView("list"); return; }
     var low = isLow(item);
+    var tier = stockTier(item);
+    var tierColor = tier === 'low' ? 'var(--danger-bright)' : (tier === 'medium' ? 'var(--warning)' : 'var(--solder-bright)');
+    var tierLabel = tier === 'low' ? '⚠ Abaixo do estoque mínimo (' + item.minStock + ')' : (tier === 'medium' ? 'Estoque médio · mínimo: ' + item.minStock : 'Estoque bom · mínimo: ' + item.minStock);
     var margin = item.salePrice - item.costPrice;
 
     var html = '';
@@ -788,8 +804,8 @@ select.filter-select{
     '</div>';
 
     html += '<div class="detail-qty-box">' +
-      '<p class="label" style="color:var(--text-muted);font-size:11px;">' + (low ? '⚠ Abaixo do estoque mínimo (' + item.minStock + ')' : 'Estoque mínimo: ' + item.minStock) + '</p>' +
-      '<p class="qty-big" style="color:' + (low ? 'var(--danger-bright)' : 'var(--text)') + '">' + item.quantity + '<span style="font-size:14px;color:var(--text-muted);font-weight:500;"> un.</span></p>' +
+      '<p class="label" style="color:var(--text-muted);font-size:11px;">' + tierLabel + '</p>' +
+      '<p class="qty-big" style="color:' + tierColor + '">' + item.quantity + '<span style="font-size:14px;color:var(--text-muted);font-weight:500;"> un.</span></p>' +
       '<div class="detail-qty-controls">' +
         '<button class="qty-btn-lg" id="detail-dec">−</button>' +
         '<button class="qty-btn-lg" id="detail-inc">+</button>' +
