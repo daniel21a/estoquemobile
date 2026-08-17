@@ -252,8 +252,21 @@ select.filter-select{
 .item-card{
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md);
   padding:13px 14px; margin-bottom:10px; display:flex; gap:12px; cursor:pointer; align-items:flex-start;
+  transition:background 0.15s, border-color 0.15s;
 }
-.item-card.low{ border-color:rgba(217,100,94,0.35); }
+.item-card.tier-low{
+  background:linear-gradient(135deg, rgba(217,100,94,0.22), rgba(217,100,94,0.08));
+  border-color:rgba(217,100,94,0.55);
+}
+.item-card.tier-medium{
+  background:linear-gradient(135deg, rgba(224,168,60,0.20), rgba(224,168,60,0.07));
+  border-color:rgba(224,168,60,0.5);
+}
+.item-card.tier-good{
+  background:var(--surface); border-color:var(--border);
+}
+.item-card.tier-low .item-icon{ background:rgba(217,100,94,0.18); color:var(--danger-bright); }
+.item-card.tier-medium .item-icon{ background:rgba(224,168,60,0.18); color:var(--warning); }
 .item-icon{
   width:40px; height:40px; border-radius:12px; background:var(--surface-alt);
   display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--copper-bright);
@@ -658,7 +671,7 @@ select.filter-select{
       var gaugeClass = tierToGaugeClass(tier);
       var ratio = item.minStock > 0 ? item.quantity / (item.minStock * 2) : (item.quantity > 0 ? Math.min(1, item.quantity / 4) : 0);
       ratio = Math.max(0, Math.min(1, ratio));
-      html += '<div class="item-card' + (low ? ' low' : '') + '" data-open="' + item.id + '">' +
+      html += '<div class="item-card tier-' + tier + '" data-open="' + item.id + '">' +
         '<div class="item-icon">' + catIcon(item.category) + '</div>' +
         '<div class="item-body">' +
           '<div class="item-top">' +
