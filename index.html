@@ -254,19 +254,31 @@ select.filter-select{
   padding:13px 14px; margin-bottom:10px; display:flex; gap:12px; cursor:pointer; align-items:flex-start;
   transition:background 0.15s, border-color 0.15s;
 }
-.item-card.tier-low{
-  background:linear-gradient(135deg, rgba(217,100,94,0.22), rgba(217,100,94,0.08));
-  border-color:rgba(217,100,94,0.55);
-}
-.item-card.tier-medium{
-  background:linear-gradient(135deg, rgba(224,168,60,0.20), rgba(224,168,60,0.07));
-  border-color:rgba(224,168,60,0.5);
-}
-.item-card.tier-good{
-  background:var(--surface); border-color:var(--border);
-}
-.item-card.tier-low .item-icon{ background:rgba(217,100,94,0.18); color:var(--danger-bright); }
-.item-card.tier-medium .item-icon{ background:rgba(224,168,60,0.18); color:var(--warning); }
+.item-card.tier-good{ background:var(--surface); border-color:var(--border); }
+
+/* estoque baixo: cartão inteiro vermelho, texto claro pra contraste */
+.item-card.tier-low{ background:var(--danger); border-color:var(--danger); }
+.item-card.tier-low .item-name{ color:#fff; }
+.item-card.tier-low .item-meta{ color:rgba(255,255,255,0.85); }
+.item-card.tier-low .item-brand-tag{ color:#fff; }
+.item-card.tier-low .item-price{ color:#fff; }
+.item-card.tier-low .item-price .label{ color:rgba(255,255,255,0.75); }
+.item-card.tier-low .gauge-label{ color:rgba(255,255,255,0.85); }
+.item-card.tier-low .item-icon{ background:rgba(255,255,255,0.18); color:#fff; }
+.item-card.tier-low .gauge-track{ background:rgba(0,0,0,0.28); }
+.item-card.tier-low .gauge-fill{ background:#fff !important; }
+
+/* estoque médio: cartão inteiro laranja/amarelo, texto escuro pra contraste */
+.item-card.tier-medium{ background:var(--warning); border-color:var(--warning); }
+.item-card.tier-medium .item-name{ color:#241B0B; }
+.item-card.tier-medium .item-meta{ color:rgba(36,27,11,0.8); }
+.item-card.tier-medium .item-brand-tag{ color:#241B0B; }
+.item-card.tier-medium .item-price{ color:#241B0B; }
+.item-card.tier-medium .item-price .label{ color:rgba(36,27,11,0.65); }
+.item-card.tier-medium .gauge-label{ color:rgba(36,27,11,0.75); }
+.item-card.tier-medium .item-icon{ background:rgba(0,0,0,0.14); color:#241B0B; }
+.item-card.tier-medium .gauge-track{ background:rgba(0,0,0,0.18); }
+.item-card.tier-medium .gauge-fill{ background:#241B0B !important; }
 .item-icon{
   width:40px; height:40px; border-radius:12px; background:var(--surface-alt);
   display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--copper-bright);
