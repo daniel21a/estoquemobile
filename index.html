@@ -417,6 +417,18 @@ select.filter-select{
       </div>
     </div>
   </div>
+
+  <div class="overlay hidden" id="report-overlay">
+    <div class="confirm-sheet" style="text-align:left">
+      <h3 style="text-align:center">Relatório de estoque</h3>
+      <p style="text-align:center">Escolha uma marca pra conferência/inspeção, ou gere com todas. O relatório traz todas as peças, com status e sugestão de compra pras que precisam.</p>
+      <div class="chip-row" id="report-chip-row" style="margin:14px 0 4px; overflow-x:auto;"></div>
+      <div class="confirm-actions" style="margin-top:16px;">
+        <button class="confirm-cancel" id="report-cancel-btn">Cancelar</button>
+        <button class="confirm-delete" id="report-generate-btn" style="background:linear-gradient(135deg, var(--copper-bright), var(--copper)); color:#1B120A;">Gerar PDF</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -437,7 +449,8 @@ select.filter-select{
     search: "",
     filterCategory: "all",
     editingId: null,
-    pendingDeleteId: null
+    pendingDeleteId: null,
+    reportFilterBrand: "all"
   };
 
   var mainEl = document.getElementById("main-content");
@@ -607,7 +620,7 @@ select.filter-select{
       el.addEventListener('click', function(){ openDetail(el.getAttribute('data-open')); });
     });
     var pdfBtn = document.getElementById("pdf-report-btn");
-    if(pdfBtn) pdfBtn.addEventListener("click", function(e){ e.stopPropagation(); generateRestockPDF(); });
+    if(pdfBtn) pdfBtn.addEventListener("click", function(e){ e.stopPropagation(); openReportFilter(); });
   }
 
   // ---------- list ----------
@@ -641,7 +654,7 @@ select.filter-select{
     mainEl.innerHTML = html;
 
     var pdfBannerList = document.getElementById("pdf-banner-list");
-    if(pdfBannerList) pdfBannerList.addEventListener("click", generateRestockPDF);
+    if(pdfBannerList) pdfBannerList.addEventListener("click", openReportFilter);
 
     var searchInput = document.getElementById("search-input");
     searchInput.addEventListener("input", function(){
@@ -714,11 +727,47 @@ select.filter-select{
     updateStatusBar();
   }
 
-  // ---------- relatório de reposição (PDF) ----------
-  function generateRestockPDF(){
-    var lowItems = state.items.filter(isLow);
-    if(lowItems.length === 0){
-      showToast("Nenhuma peça precisa de reposição agora.");
+  // ---------- relatório de estoque / reposição (PDF) ----------
+  function openReportFilter(){
+    if(state.items.length === 0){
+      showToast("Nenhuma peça cadastrada ainda.");
+      return;
+    }
+    var brands = [];
+    state.items.forEach(function(i){ if(brands.indexOf(i.brand) === -1) brands.push(i.brand); });
+    brands.sort();
+
+    state.reportFilterBrand = "all";
+    var chipRow = document.getElementById("report-chip-row");
+    var html = '<button class="chip active" data-brand-filter="all">Todas as marcas</button>';
+    brands.forEach(function(b){
+      html += '<button class="chip" data-brand-filter="' + esc(b) + '">' + esc(b) + '</button>';
+    });
+    chipRow.innerHTML = html;
+
+    chipRow.querySelectorAll('.chip').forEach(function(chip){
+      chip.addEventListener('click', function(){
+        state.reportFilterBrand = chip.getAttribute('data-brand-filter');
+        chipRow.querySelectorAll('.chip').forEach(function(c2){ c2.classList.toggle('active', c2 === chip); });
+      });
+    });
+
+    document.getElementById("report-overlay").classList.remove("hidden");
+  }
+
+  function suggestedQtyFor(item, tier){
+    if(tier === 'good') return 0;
+    return Math.max(1, (item.minStock * 2) - item.quantity);
+  }
+
+  function generateRestockPDF(brandFilter){
+    brandFilter = brandFilter || "all";
+    var items = state.items.slice();
+    if(brandFilter !== "all"){
+      items = items.filter(function(i){ return i.brand === brandFilter; });
+    }
+    if(items.length === 0){
+      showToast(brandFilter === "all" ? "Nenhuma peça cadastrada ainda." : "Nenhuma peça da marca " + brandFilter + " cadastrada.");
       return;
     }
     if(!window.jspdf || !window.jspdf.jsPDF){
@@ -730,23 +779,35 @@ select.filter-select{
     var doc = new jsPDFCtor();
     var now = new Date();
     var dateStr = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    var titleSuffix = brandFilter !== "all" ? ' — ' + brandFilter : '';
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(30, 30, 30);
-    doc.text('Relatório de Reposição de Estoque', 14, 18);
+    doc.text('Relatório de Estoque' + titleSuffix, 14, 18);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9.5);
     doc.setTextColor(110, 110, 110);
-    doc.text('Gerado em ' + dateStr, 14, 25);
+    doc.text('Gerado em ' + dateStr + (brandFilter !== "all" ? ' · Marca: ' + brandFilter : ' · Todas as marcas') + ' · Use para conferência física e para compras', 14, 25);
 
-    var sorted = lowItems.slice().sort(function(a, b){ return (a.quantity - a.minStock) - (b.quantity - b.minStock); });
+    var tierOrder = { low: 0, medium: 1, good: 2 };
+    var sorted = items.slice().sort(function(a, b){
+      var ta = stockTier(a), tb = stockTier(b);
+      if(tierOrder[ta] !== tierOrder[tb]) return tierOrder[ta] - tierOrder[tb];
+      return a.name.localeCompare(b.name);
+    });
+
     var rows = [];
     var totalCost = 0;
     var totalUnits = 0;
+    var lowCount = 0, mediumCount = 0, goodCount = 0;
+    var statusLabel = { low: 'Baixo', medium: 'Médio', good: 'Bom' };
+
     sorted.forEach(function(item){
-      var suggested = Math.max(1, (item.minStock * 2) - item.quantity);
+      var tier = stockTier(item);
+      if(tier === 'low') lowCount++; else if(tier === 'medium') mediumCount++; else goodCount++;
+      var suggested = suggestedQtyFor(item, tier);
       var cost = suggested * item.costPrice;
       totalCost += cost;
       totalUnits += suggested;
@@ -756,27 +817,35 @@ select.filter-select{
         item.brand + (item.model ? ' - ' + item.model : ''),
         String(item.quantity),
         String(item.minStock),
-        String(suggested),
-        fmtBRL(item.costPrice),
-        fmtBRL(cost)
+        statusLabel[tier],
+        suggested > 0 ? String(suggested) : '—',
+        suggested > 0 ? fmtBRL(cost) : '—'
       ]);
     });
 
     doc.autoTable({
       startY: 31,
-      head: [['Peça', 'Categoria', 'Marca / Modelo', 'Atual', 'Mín.', 'Comprar', 'Custo un.', 'Custo total']],
+      head: [['Peça', 'Categoria', 'Marca / Modelo', 'Atual', 'Mín.', 'Status', 'Comprar', 'Custo repor']],
       body: rows,
-      styles: { fontSize: 8.3, cellPadding: 3, textColor: [40,40,40] },
-      headStyles: { fillColor: [196, 131, 78], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+      styles: { fontSize: 8, cellPadding: 2.6, textColor: [40,40,40] },
+      headStyles: { fillColor: [196, 131, 78], textColor: 255, fontStyle: 'bold', fontSize: 8.3 },
       alternateRowStyles: { fillColor: [246, 244, 240] },
       columnStyles: {
-        0: { cellWidth: 34 },
-        2: { cellWidth: 36 },
+        0: { cellWidth: 30 },
+        2: { cellWidth: 32 },
         3: { halign: 'center' },
         4: { halign: 'center' },
         5: { halign: 'center', fontStyle: 'bold' },
-        6: { halign: 'right' },
+        6: { halign: 'center' },
         7: { halign: 'right' }
+      },
+      didParseCell: function(data){
+        if(data.section === 'body' && data.column.index === 5){
+          var val = data.cell.raw;
+          if(val === 'Baixo'){ data.cell.styles.textColor = [193, 68, 62]; }
+          else if(val === 'Médio'){ data.cell.styles.textColor = [163, 111, 20]; }
+          else { data.cell.styles.textColor = [58, 130, 103]; }
+        }
       }
     });
 
@@ -792,9 +861,10 @@ select.filter-select{
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(110, 110, 110);
-    doc.text(sorted.length + ' peça(s) abaixo do mínimo · ' + totalUnits + ' unidade(s) sugeridas para compra', 14, finalY + 7);
+    doc.text(sorted.length + ' peça(s) no relatório · ' + lowCount + ' baixo(s) · ' + mediumCount + ' médio(s) · ' + goodCount + ' bom(ns) · ' + totalUnits + ' unidade(s) sugeridas', 14, finalY + 7);
 
-    doc.save('relatorio-reposicao-' + now.toISOString().slice(0,10) + '.pdf');
+    var brandSlug = brandFilter !== "all" ? '-' + brandFilter.toLowerCase().replace(/[^a-z0-9]+/g, '') : '';
+    doc.save('relatorio-estoque' + brandSlug + '-' + now.toISOString().slice(0,10) + '.pdf');
     showToast("Relatório PDF gerado.");
   }
 
@@ -875,6 +945,14 @@ select.filter-select{
     state.pendingDeleteId = null;
     document.getElementById("confirm-overlay").classList.add("hidden");
     showView("list");
+  });
+
+  document.getElementById("report-cancel-btn").addEventListener("click", function(){
+    document.getElementById("report-overlay").classList.add("hidden");
+  });
+  document.getElementById("report-generate-btn").addEventListener("click", function(){
+    document.getElementById("report-overlay").classList.add("hidden");
+    generateRestockPDF(state.reportFilterBrand);
   });
 
   // ---------- form (add/edit) ----------
